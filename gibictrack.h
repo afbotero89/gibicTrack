@@ -23,6 +23,8 @@ public:
 
     void OrganizarDatos(const uchar *datos);
 
+    void RealizarFFT(double *signalRx);
+
     void fft( complex *v, int n, complex *tmp );
 
 private slots:

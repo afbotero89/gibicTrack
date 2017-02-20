@@ -108,7 +108,29 @@ void GibicTrack::OrganizarDatos(const uchar *datos){
     }
 }
 
-// Funcion para calculo de FFT
+// Funciones para calculo de FFT
+void GibicTrack::RealizarFFT(double *signalRx){
+
+    complex v[N], scratch[N];
+
+    int k;
+
+    /* Fill v[] with a function of known FFT: */
+
+    //console->putData("\n orig!!");
+    for(k=0; k<N; k++) {
+
+        v[k].Re = signalRx[k];
+        v[k].Im = 0;
+
+    }
+
+    /* FFT of v[]: */
+
+    fft( v, N, scratch );
+}
+
+
 void GibicTrack::fft( complex *v, int n, complex *tmp )
 {
 
