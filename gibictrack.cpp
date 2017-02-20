@@ -15,6 +15,8 @@
 
 bool GibicConectado = false;
 int totalDatos = 0;
+int total=0;
+int arregloXYZ[80000][3];//Se inicializa en el constructor de la clase (mainwindow) al reservar espacio para el maximo de bytes esperados
 
 GibicTrack::GibicTrack()
 {
@@ -84,9 +86,30 @@ void GibicTrack::initActionsConnections()
     //connect(serial, SIGNAL(readyRead()), this, SLOT(readData()));
 }
 
+// Funcion para organizar datos provenientes del sensor
+void GibicTrack::OrganizarDatos(const uchar *datos){
+    int cntPos=0;//Contador de posición en el vector, indica la columna de la matriz
+    int cntVec = 0;//Contador del vector con el que se trabaja (X, Y o Z)indica la fila de la matriz
+
+    for (int j = 0; j < total / 2; j++)//otra forma es j+=2 y que el indice sea j en lugar de 2*j
+    {
+        arregloXYZ[cntPos][cntVec]= datos[2 * j] * 256 + datos[2 * j + 1];
+        cntPos++;
+        if (cntPos % 128 == 0)
+        {
+            cntVec++;
+            if (cntVec==3)
+            {
+                cntVec = 0;
+            }else{
+                cntPos-=128;
+            }
+        }
+    }
+}
+
 // Funcion para calculo de FFT
 void GibicTrack::fft( complex *v, int n, complex *tmp )
-
 {
 
   if(n>1) {            /* otherwise, do nothing and return */

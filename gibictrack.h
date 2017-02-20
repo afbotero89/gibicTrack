@@ -21,6 +21,8 @@ public:
 
     void initActionsConnections();
 
+    void OrganizarDatos(const uchar *datos);
+
     void fft( complex *v, int n, complex *tmp );
 
 private slots:
