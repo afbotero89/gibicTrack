@@ -6,7 +6,7 @@
 #include <stdlib.h>
 #include <QDebug>
 
-#define q    11        /* for 2^7 points --- Señal de 2^n datos */
+#define q    7        /* for 2^7 points --- Señal de 2^n datos */
 #define N    (1<<q)        /* N-point FFT, iFFT */
 
 #ifndef PI
@@ -16,12 +16,19 @@
 bool GibicConectado = false;
 int totalDatos = 0;
 int total=0;
-int arregloXYZ[80000][3];//Se inicializa en el constructor de la clase (mainwindow) al reservar espacio para el maximo de bytes esperados
+double arregloXYZ[80000][3];//Se inicializa en el constructor de la clase (mainwindow) al reservar espacio para el maximo de bytes esperados
+double binsMatriz[3][3] = {{0.0,0.0,0.0},{0.0,0.0,0.0},{0.0,0.0,0.0}};
+
+const int samplingFrecuency = 25000;//80000;
+const int deltaF=samplingFrecuency/(2*N);//El deltaF= fs/N pero para estrechar el intervalo en el que cae la frecuencia divido por 2, evitando coger 2 valores
+//Esto hay que organizarlo las frecuencias no estan en orden
+const int frecuenciesCoil[3] = {5000,10000,15000};
+
+QByteArray vectorRX;
 
 GibicTrack::GibicTrack()
 {
-
-    initActionsConnections();
+    vectorRX.reserve(150000);
 }
 
 void GibicTrack::handleError(QSerialPort::SerialPortError error)
@@ -37,7 +44,7 @@ bool GibicTrack::ConectarSensor()
     //connect(serial, SIGNAL(error(QSerialPort::SerialPortError)), this,SLOT(handleError(QSerialPort::SerialPortError)));
     //connect(serial, SIGNAL(readyRead()), this, SLOT(procesarDatos()));
     serial = new QSerialPort(this);
-    serial->setPortName("ttyUSB0");//Se requiere saber con anterioridad el nombre asignado al puerto
+    serial->setPortName("ttyACM0");//Se requiere saber con anterioridad el nombre asignado al puerto
     serial->setBaudRate(9600);
     serial->setDataBits(QSerialPort::Data8);
     serial->setParity(QSerialPort::NoParity);
@@ -52,7 +59,7 @@ bool GibicTrack::ConectarSensor()
         // Si hay error
         GibicConectado = false;
     }
-
+    initActionsConnections();
     return GibicConectado;
 }
 
@@ -61,16 +68,32 @@ void GibicTrack::SolicitarDato()
     qDebug() << "pide dato";
     totalDatos = 0;
     serial->write("$");
-    readData();
 }
 
 void GibicTrack::readData()
 {
     int cantidad=serial->bytesAvailable();
-    totalDatos+=cantidad;
+    total+=cantidad;
     QByteArray Qdata = serial->readAll();
-    qDebug() << Qdata;
-    qDebug() << totalDatos;
+    vectorRX.append(Qdata);
+    double radio;
+    qDebug()<< total;
+    if(total>=768){//if(total>=N*3*2){
+        //Se requiere de este casting para tomar los bytes del QByteArray como char sin signo
+        const uchar *datosRX= reinterpret_cast<const uchar*>(vectorRX.constData());
+        OrganizarDatos(datosRX);
+        RealizarFFTs();
+        //MostrarMatrizMag();
+        //PosOri_Raab (binsMatriz, posXYZ, radio);
+        //MostrarXYZ(posXYZ);
+
+        //values[1] = posXYZ[0][0];
+        //values[2] = posXYZ[1][0];
+        //values[3] = 0;
+
+        //EmpaquetarDatos(values);
+    }
+    //qDebug() << totalDatos;
 }
 
 void GibicTrack::closeSerialPort()
@@ -83,8 +106,44 @@ void GibicTrack::initActionsConnections()
 {
     //Conexiones para las señales del puerto serial
     //connect(serial, SIGNAL(error(QSerialPort::SerialPortError)), this, SLOT(handleError(QSerialPort::SerialPortError)));
-    //connect(serial, SIGNAL(readyRead()), this, SLOT(readData()));
+    connect(serial, SIGNAL(readyRead()), this, SLOT(readData()));
 }
+
+void GibicTrack::RealizarFFTs(){
+    double signalRx[N];
+    complex v[N], scratch[N];
+
+    int k;
+
+    /* Fill v[] with a function of known FFT: */
+
+    for(int i=0;i<3;i++){
+        for(k=0; k<N; k++) {
+            signalRx[k]=arregloXYZ[k][i];//sig_10_10_05[k];
+            v[k].Re = arregloXYZ[k][i];
+            v[k].Im = 0;
+
+        }
+
+        print_vector("Orig", v, N);
+
+        /* FFT of v[]: */
+
+        fft( v, N, scratch );
+
+        print_vector(" FFT", v, N);
+
+        /* Get magnitude vector */
+
+        double magVec[N/2], frecVec[N/2];
+        getMagnitudeVector(v, binsMatriz, magVec, frecVec,i);
+
+        //Para no graficar nivel DC que al ser ondas sobre 0V siempre tienen un nivel DC alto
+        magVec[0]=0;
+
+    }
+}
+
 
 // Funcion para organizar datos provenientes del sensor
 void GibicTrack::OrganizarDatos(const uchar *datos){
@@ -95,15 +154,10 @@ void GibicTrack::OrganizarDatos(const uchar *datos){
     {
         arregloXYZ[cntPos][cntVec]= datos[2 * j] * 256 + datos[2 * j + 1];
         cntPos++;
-        if (cntPos % 128 == 0)
+        if (cntPos == 128)
         {
             cntVec++;
-            if (cntVec==3)
-            {
-                cntVec = 0;
-            }else{
-                cntPos-=128;
-            }
+            cntPos=0;
         }
     }
 }
@@ -165,4 +219,42 @@ void GibicTrack::fft( complex *v, int n, complex *tmp )
     }
   }
   return;
+}
+
+// Funcion que obtiene la magnitud del vector complejo que retorna la FFT
+// Calcula la matriz de bins (magnitudes para las frecuencias de 5K, 10K, 15K)
+void GibicTrack::getMagnitudeVector(complex *v, double binsMatriz[3][3], double *magnitudeVector, double *frecuencyVector, int m){
+    int j, k;
+
+    for(j=0; j<N/2; j++) {
+        frecuencyVector[j] = (samplingFrecuency*j)/(double)N;
+    }
+
+    for(k=0; k<N/2; k++) {
+
+        magnitudeVector[k] = 2.0*(sqrt(pow(v[k].Re/(double)N, 2) + pow(v[k].Im/(double)N, 2)));
+
+        if (  (frecuencyVector[k]>=(frecuenciesCoil[0]-deltaF) ) && (frecuencyVector[k]<=(frecuenciesCoil[0]+deltaF))  ){
+            binsMatriz[0][m] = magnitudeVector[k];
+        }
+        if (  (frecuencyVector[k]>=(frecuenciesCoil[1]-deltaF) ) && (frecuencyVector[k]<=(frecuenciesCoil[1]+deltaF))  ){
+            binsMatriz[1][m] = magnitudeVector[k];
+        }
+        if (  (frecuencyVector[k]>=(frecuenciesCoil[2]-deltaF) ) && (frecuencyVector[k]<=(frecuenciesCoil[2]+deltaF))  ){
+            binsMatriz[2][m] = magnitudeVector[k];
+        }
+
+    }
+}
+
+void GibicTrack::print_vector(const char *title, complex *x, int n){
+    int i;
+
+    printf("%s (dim=%d):", title, n);
+
+    for(i=0; i<n; i++ ) printf(" %5.2f,%5.2f ", x[i].Re,x[i].Im);
+
+    putchar('\n');
+
+    return;
 }

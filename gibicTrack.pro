@@ -13,10 +13,13 @@ TEMPLATE = lib
 
 DEFINES += GIBICTRACK_LIBRARY
 
-SOURCES += gibictrack.cpp
+SOURCES += gibictrack.cpp \
+    ../../Pru-G1B1C 3FFT/RaabAlgorithm.cpp \
+    ../../Pru-G1B1C 3FFT/RaabAlgorithm.cpp
 
 HEADERS += gibictrack.h\
-        gibicTrack_global.h
+        gibicTrack_global.h \
+    ../../Pru-G1B1C 3FFT/RaabAlgorithm.h
 
 symbian {
     MMP_RULES += EXPORTUNFROZEN
