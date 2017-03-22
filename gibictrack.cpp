@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <QDebug>
+#include "RaabAlgorithm.h"
 
 #define q    7        /* for 2^7 points --- Señal de 2^n datos */
 #define N    (1<<q)        /* N-point FFT, iFFT */
@@ -18,7 +19,7 @@ int totalDatos = 0;
 int total=0;
 double arregloXYZ[80000][3];//Se inicializa en el constructor de la clase (mainwindow) al reservar espacio para el maximo de bytes esperados
 double binsMatriz[3][3] = {{0.0,0.0,0.0},{0.0,0.0,0.0},{0.0,0.0,0.0}};
-
+double posXYZ [3][2];
 const int samplingFrecuency = 25000;//80000;
 const int deltaF=samplingFrecuency/(2*N);//El deltaF= fs/N pero para estrechar el intervalo en el que cae la frecuencia divido por 2, evitando coger 2 valores
 //Esto hay que organizarlo las frecuencias no estan en orden
@@ -83,6 +84,11 @@ void GibicTrack::readData()
         const uchar *datosRX= reinterpret_cast<const uchar*>(vectorRX.constData());
         OrganizarDatos(datosRX);
         RealizarFFTs();
+        PosOri_Raab (binsMatriz, posXYZ, radio);
+        qDebug()<< "pos xyz";
+        qDebug()<< posXYZ[0][0];
+        qDebug()<< posXYZ[1][0];
+        qDebug()<< posXYZ[2][0];
         //MostrarMatrizMag();
         //PosOri_Raab (binsMatriz, posXYZ, radio);
         //MostrarXYZ(posXYZ);
@@ -125,13 +131,13 @@ void GibicTrack::RealizarFFTs(){
 
         }
 
-        print_vector("Orig", v, N);
+        //print_vector("Orig", v, N);
 
         /* FFT of v[]: */
 
         fft( v, N, scratch );
 
-        print_vector(" FFT", v, N);
+        //print_vector(" FFT", v, N);
 
         /* Get magnitude vector */
 

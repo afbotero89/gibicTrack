@@ -2,6 +2,7 @@
 #define GIBICTRACK_H
 
 #include "gibicTrack_global.h"
+#include "RaabAlgorithm.h"
 
 #include <QtSerialPort/QSerialPort>
 
