@@ -38,3 +38,15 @@ unix:!symbian {
     }
     INSTALLS += target
 }
+
+win32:CONFIG(release, debug|release): LIBS += -L$$PWD/../../../Desktop/OpenIGTLink-build/bin/release/ -lOpenIGTLink
+else:win32:CONFIG(debug, debug|release): LIBS += -L$$PWD/../../../Desktop/OpenIGTLink-build/bin/debug/ -lOpenIGTLink
+else:symbian: LIBS += -lOpenIGTLink
+else:unix: LIBS += -L$$PWD/../../../Desktop/OpenIGTLink-build/bin/ -lOpenIGTLink
+
+INCLUDEPATH += $$PWD/../../../Desktop/OpenIGTLink-build/bin
+DEPENDPATH += $$PWD/../../../Desktop/OpenIGTLink-build/bin
+
+win32:CONFIG(release, debug|release): PRE_TARGETDEPS += $$PWD/../../../Desktop/OpenIGTLink-build/bin/release/OpenIGTLink.lib
+else:win32:CONFIG(debug, debug|release): PRE_TARGETDEPS += $$PWD/../../../Desktop/OpenIGTLink-build/bin/debug/OpenIGTLink.lib
+else:unix:!symbian: PRE_TARGETDEPS += $$PWD/../../../Desktop/OpenIGTLink-build/bin/libOpenIGTLink.a

@@ -25,6 +25,15 @@ const int samplingFrecuency = 25000;//80000;
 const int deltaF=samplingFrecuency/(2*N);//El deltaF= fs/N pero para estrechar el intervalo en el que cae la frecuencia divido por 2, evitando coger 2 valores
 //Esto hay que organizarlo las frecuencias no estan en orden
 const int frecuenciesCoil[3] = {5000,10000,15000};
+uchar sendValues[7] = {1, 200, 300, 400, 5, 6, 7};
+bool SlicerConectado=false;
+bool SoketCreado=false;
+
+//Variables IGTLink
+igtl::Matrix4x4	matrix;
+igtl::TransformMessage::Pointer trans_Msj;
+igtl::PositionMessage::Pointer pos_Msj;
+igtl::ClientSocket::Pointer mi_socket;
 
 QByteArray vectorRX;
 
@@ -70,9 +79,17 @@ void GibicTrack::SolicitarDato(double retorno[3][2])
     qDebug() << "pide dato";
     totalDatos = 0;
     serial->write("$");
+
     retorno[0][0] = posXYZ[0][0];
     retorno[1][0] = posXYZ[1][0];
     retorno[2][0] = posXYZ[2][0];
+
+    sendValues[0] = posXYZ[0][0];
+    sendValues[1] = posXYZ[1][0];
+    sendValues[2] = posXYZ[2][0];
+
+    EmpaquetarDatos(sendValues);
+
 }
 
 void GibicTrack::readData()
@@ -132,11 +149,19 @@ void GibicTrack::RealizarFFTs(){
 
         }
 
+        //printf("\n");
         //print_vector("Orig", v, N);
 
         /* FFT of v[]: */
 
         fft( v, N, scratch );
+
+        //printf("original\n");
+
+        //qDebug()<< QString::number(i);
+
+
+        //printf("calculo de FFT\n");
 
         //print_vector(" FFT", v, N);
 
@@ -264,4 +289,87 @@ void GibicTrack::print_vector(const char *title, complex *x, int n){
     putchar('\n');
 
     return;
+}
+
+
+/*********************************************************
+  FUNCION PARA ESTABLECER LA CONEXIÓN CON EL 3DSLICER
+  ********************************************************/
+void GibicTrack::Conectar3DSlicer(){
+   if(!SlicerConectado)
+        {
+            qDebug()<< "3DSlicer: Conectando...\n";
+//            /*Establecemos conexion con el servidor-> ip: 192.168.1.11, port number: 18944
+//            que son los valores del "LocalHost" y el puerto por defecto de 3dSlicer
+//            Usando las clase suministrada por la libreria OpenIGTLink -> igtl::ClientSocket*/
+            if(!SoketCreado){
+                mi_socket = igtl::ClientSocket::New();
+                SoketCreado = true;
+            }
+
+            int result = mi_socket->ConnectToServer("localhost",18944);//192.168.1.11
+            if (result != 0)//Chequeamos el resultado de la +QString::numberconexion
+            {
+               qDebug()<< "3DSlicer: Error\n";
+            }else
+            {
+                SlicerConectado=true;
+                qDebug()<< "3DSlicer: Conexion OK\n";
+            }
+//            /*Creamos la instancia de la clase de mensaje OpenIGTLink de acuerdo al
+//            mensaje que vamos a enviar en este caso sera una transformación o una posición*/
+
+                pos_Msj = igtl::PositionMessage::New();
+//                /*|Indicamos que vamos a enviar tanto posicion como orientacion en el formato
+//                de quaterniones y que vamos a enviar los 4 elementos*/
+                pos_Msj->SetPackType(igtl::PositionMessage::ALL);
+//                /*|Colocamos un nombre que identifique al dispositivo que envia la informacion via el protocolo
+//                OpenIGTLink, esto es util si por ejemplo hay varios sensores enviando el mismo tipo de información*/
+                pos_Msj->SetDeviceName("TrackerG1B1C");
+
+        }else{
+            SlicerConectado = false;
+            mi_socket->CloseSocket();
+            qDebug()<< "3DSlicer: Desconectado\n";
+    }
+}
+
+
+/*****************************************************************************
+  FUNCION PARA EMPAQUETAR LOS DATOS CON EL FORMATO ADECUADO PARA SU ENVIO
+  ****************************************************************************/
+void GibicTrack::EmpaquetarDatos(const uchar *datos)
+{
+    float* PosVec=new float[3];
+    float* QtrnVec=new float[4];
+
+    PosVec[0]=datos[1];
+    PosVec[1]=datos[2];
+    PosVec[2]=datos[3];
+    //*******************************************************************
+    //*******************************************************************
+    //   O   J   O
+    //*******************************************************************
+    //*******************************************************************
+    //Falta convertir los angulos de Euler en el quaternion respectivo
+    QtrnVec[0]=datos[4];
+    QtrnVec[1]=datos[5];
+    QtrnVec[2]=datos[6];
+    QtrnVec[3]=datos[0];
+    EnviarPosicion(PosVec,QtrnVec);
+}
+
+void GibicTrack::EnviarPosicion(float *PosVec, float *QtrnVec)
+{
+    Q_UNUSED (PosVec);
+    Q_UNUSED (QtrnVec);
+//    /*|"Empaquetamos" la información. Es decir utilizamos la funcion miembro "Pack" que
+//    genera un flujo o estructura de bytes con el formato indicado por el protocolo OpenIGTLink*/
+    pos_Msj->SetPosition(PosVec);
+    pos_Msj->SetQuaternion(QtrnVec);
+    pos_Msj->Pack();
+//    /*|Enviamos la informacion a traves de la conexion por sockets TCP/IP utilizando la clase
+//    igtl::ClientSocket la cual puede ser reemplazada por otra libreria que implemente sockets
+//    como Csocket pero mejor esta que se construye directamente sobre win32socket*/
+    mi_socket->Send(pos_Msj->GetPackPointer(), pos_Msj->GetPackSize());
 }

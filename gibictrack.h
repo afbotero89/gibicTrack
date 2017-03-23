@@ -6,6 +6,10 @@
 
 #include <QtSerialPort/QSerialPort>
 
+#include "igtl/igtlTransformMessage.h"
+#include "igtl/igtlPositionMessage.h"
+#include "igtl/igtlClientSocket.h"
+
 typedef float real;
 typedef struct{real Re; real Im;} complex;
 
@@ -35,6 +39,12 @@ public:
     void getMagnitudeVector(complex *v, double binsMatriz[3][3], double *magnitudeVector, double *frecuencyVector, int m);
 
     void print_vector(const char *title, complex *x, int n);
+
+    void Conectar3DSlicer();
+
+    void EmpaquetarDatos(const uchar *datos);
+
+    void EnviarPosicion(float *PosVec, float *QtrnVec);
 
 private slots:
 
