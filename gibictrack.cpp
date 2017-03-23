@@ -21,8 +21,9 @@ double arregloXYZ[80000][3];//Se inicializa en el constructor de la clase (mainw
 double binsMatriz[3][3] = {{0.0,0.0,0.0},{0.0,0.0,0.0},{0.0,0.0,0.0}};
 double posXYZ [3][2];
 double retorno[3][2] = {{0.0,0.0},{0.0,0.0},{0.0,0.0}};
-const int samplingFrecuency = 25000;//80000;
+const int samplingFrecuency = 80000;//80000;
 const int deltaF=samplingFrecuency/(2*N);//El deltaF= fs/N pero para estrechar el intervalo en el que cae la frecuencia divido por 2, evitando coger 2 valores
+//const int deltaF=50;
 //Esto hay que organizarlo las frecuencias no estan en orden
 const int frecuenciesCoil[3] = {5000,10000,15000};
 uchar sendValues[7] = {1, 200, 300, 400, 5, 6, 7};
@@ -76,7 +77,7 @@ bool GibicTrack::ConectarSensor()
 
 void GibicTrack::SolicitarDato(double retorno[3][2])
 {
-    qDebug() << "pide dato";
+    qDebug() << "solicita dato !!!!";
     totalDatos = 0;
     serial->write("$");
 
@@ -84,9 +85,9 @@ void GibicTrack::SolicitarDato(double retorno[3][2])
     retorno[1][0] = posXYZ[1][0];
     retorno[2][0] = posXYZ[2][0];
 
-    sendValues[0] = posXYZ[0][0];
-    sendValues[1] = posXYZ[1][0];
-    sendValues[2] = posXYZ[2][0];
+    sendValues[1] = posXYZ[0][0];
+    sendValues[2] = posXYZ[1][0];
+    sendValues[3] = posXYZ[2][0];
 
     EmpaquetarDatos(sendValues);
 
@@ -106,7 +107,7 @@ void GibicTrack::readData()
         OrganizarDatos(datosRX);
         RealizarFFTs();
         PosOri_Raab (binsMatriz, posXYZ, radio);
-
+        total = 0;
         //MostrarMatrizMag();
         //PosOri_Raab (binsMatriz, posXYZ, radio);
         //MostrarXYZ(posXYZ);
@@ -267,16 +268,18 @@ void GibicTrack::getMagnitudeVector(complex *v, double binsMatriz[3][3], double 
         magnitudeVector[k] = 2.0*(sqrt(pow(v[k].Re/(double)N, 2) + pow(v[k].Im/(double)N, 2)));
 
         if (  (frecuencyVector[k]>=(frecuenciesCoil[0]-deltaF) ) && (frecuencyVector[k]<=(frecuenciesCoil[0]+deltaF))  ){
-            binsMatriz[0][m] = magnitudeVector[k];
+            binsMatriz[m][0] = magnitudeVector[k];
         }
         if (  (frecuencyVector[k]>=(frecuenciesCoil[1]-deltaF) ) && (frecuencyVector[k]<=(frecuenciesCoil[1]+deltaF))  ){
-            binsMatriz[1][m] = magnitudeVector[k];
+            binsMatriz[m][1] = magnitudeVector[k];
         }
         if (  (frecuencyVector[k]>=(frecuenciesCoil[2]-deltaF) ) && (frecuencyVector[k]<=(frecuenciesCoil[2]+deltaF))  ){
-            binsMatriz[2][m] = magnitudeVector[k];
+            binsMatriz[m][2] = magnitudeVector[k];
         }
-
     }
+    qDebug()<< binsMatriz[0][0];
+    qDebug()<< binsMatriz[0][1];
+    qDebug()<< binsMatriz[0][2];
 }
 
 void GibicTrack::print_vector(const char *title, complex *x, int n){
