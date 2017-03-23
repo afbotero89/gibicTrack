@@ -20,6 +20,7 @@ int total=0;
 double arregloXYZ[80000][3];//Se inicializa en el constructor de la clase (mainwindow) al reservar espacio para el maximo de bytes esperados
 double binsMatriz[3][3] = {{0.0,0.0,0.0},{0.0,0.0,0.0},{0.0,0.0,0.0}};
 double posXYZ [3][2];
+double retorno[3][2] = {{0.0,0.0},{0.0,0.0},{0.0,0.0}};
 const int samplingFrecuency = 25000;//80000;
 const int deltaF=samplingFrecuency/(2*N);//El deltaF= fs/N pero para estrechar el intervalo en el que cae la frecuencia divido por 2, evitando coger 2 valores
 //Esto hay que organizarlo las frecuencias no estan en orden
@@ -64,11 +65,14 @@ bool GibicTrack::ConectarSensor()
     return GibicConectado;
 }
 
-void GibicTrack::SolicitarDato()
+void GibicTrack::SolicitarDato(double retorno[3][2])
 {
     qDebug() << "pide dato";
     totalDatos = 0;
     serial->write("$");
+    retorno[0][0] = posXYZ[0][0];
+    retorno[1][0] = posXYZ[1][0];
+    retorno[2][0] = posXYZ[2][0];
 }
 
 void GibicTrack::readData()
@@ -78,17 +82,14 @@ void GibicTrack::readData()
     QByteArray Qdata = serial->readAll();
     vectorRX.append(Qdata);
     double radio;
-    qDebug()<< total;
+    //qDebug()<< total;
     if(total>=768){//if(total>=N*3*2){
         //Se requiere de este casting para tomar los bytes del QByteArray como char sin signo
         const uchar *datosRX= reinterpret_cast<const uchar*>(vectorRX.constData());
         OrganizarDatos(datosRX);
         RealizarFFTs();
         PosOri_Raab (binsMatriz, posXYZ, radio);
-        qDebug()<< "pos xyz";
-        qDebug()<< posXYZ[0][0];
-        qDebug()<< posXYZ[1][0];
-        qDebug()<< posXYZ[2][0];
+
         //MostrarMatrizMag();
         //PosOri_Raab (binsMatriz, posXYZ, radio);
         //MostrarXYZ(posXYZ);

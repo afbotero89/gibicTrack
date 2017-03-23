@@ -20,7 +20,7 @@ public:
 
     void closeSerialPort();
 
-    void SolicitarDato();
+    void SolicitarDato(double retorno[3][2]);
 
     void initActionsConnections();
 

@@ -32,12 +32,12 @@ void PosOri_Raab (double binsMatriz[3][3], double posXYZ [3][2], double &radio){
     }
 
     //%11.4e Mostrar en notación cientifica con 11 caracteres y 4 digitos luego del punto
-    printf("\n\nP =(%11.4e, %11.4e, %11.4e)\n", P(0,0),P(1,0),P(2,0));
+    //printf("\n\nP =(%11.4e, %11.4e, %11.4e)\n", P(0,0),P(1,0),P(2,0));
 
     r6=(pow(C,2)/(2.0/3.0*(P(0,0)+P(1,0)+P(2,0))));
     r=pow(r6,(1.0/6.0));
     radio=r;
-    printf("\n\nR =%20.4e\n", r);
+    //printf("\n\nR =%20.4e\n", r);
     CorN=Np*Mp*P;
 
     //    Se calculan las coordenadas segun Raab:
@@ -64,7 +64,7 @@ void PosOri_Raab (double binsMatriz[3][3], double posXYZ [3][2], double &radio){
     double AlfaEst=alfa(2,0);
     double BetaEst=beta(0,0);
 
-    printf("Alfa y Beta =(%11.4e, %11.4e)\n", AlfaEst*180/M_PI,BetaEst*180/M_PI);
+   //printf("Alfa y Beta =(%11.4e, %11.4e)\n", AlfaEst*180/M_PI,BetaEst*180/M_PI);
 
 
     //Calculo alternativo de coordenadas al propuesto por Raab, al menos en la simulación da mas exacto
@@ -163,14 +163,14 @@ matriz3x3 CalElevation_MatRot(double angulo){
 }
 
 void printMatriz(const char *texto, matriz3x3 impMatriz){
-    printf("\n\n%s =\n   %11.4e, %11.4e, %11.4e\n   %11.4e, %11.4e, %11.4e\n   %11.4e, %11.4e, %11.4e\n", texto,
-           impMatriz(0,0),impMatriz(0,1),impMatriz(0,2),
-           impMatriz(1,0),impMatriz(1,1),impMatriz(1,2),
-           impMatriz(2,0),impMatriz(2,1),impMatriz(2,2));
+    //printf("\n\n%s =\n   %11.4e, %11.4e, %11.4e\n   %11.4e, %11.4e, %11.4e\n   %11.4e, %11.4e, %11.4e\n", texto,
+      //     impMatriz(0,0),impMatriz(0,1),impMatriz(0,2),
+      //     impMatriz(1,0),impMatriz(1,1),impMatriz(1,2),
+      //     impMatriz(2,0),impMatriz(2,1),impMatriz(2,2));
 }
 
 void printVector(const char *texto, vector3x1 impVector){
-    printf("\n\n%s =(%11.4e, %11.4e, %11.4e)\n", texto,
-           impVector(0,0),impVector(1,0),impVector(2,0));
+    //printf("\n\n%s =(%11.4e, %11.4e, %11.4e)\n", texto,
+      //     impVector(0,0),impVector(1,0),impVector(2,0));
 }
 
