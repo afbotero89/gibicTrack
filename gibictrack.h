@@ -26,8 +26,6 @@ public:
 
     void SolicitarDato(double retorno[3][2]);
 
-    void SolicitarDatoIMU();
-
     void initActionsConnections();
 
     void OrganizarDatos(const uchar *datos);
@@ -62,6 +60,8 @@ private slots:
     void readData();
 
     void handleError(QSerialPort::SerialPortError error);
+
+    void SolicitarDatoIMU();
 
 private:
     QSerialPort *serial;

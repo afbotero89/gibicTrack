@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <QDebug>
 #include "RaabAlgorithm.h"
+#include <QTimer>
 
 #define q    7        /* for 2^7 points --- Señal de 2^n datos */
 #define N    (1<<q)        /* N-point FFT, iFFT */
@@ -38,10 +39,12 @@ igtl::ClientSocket::Pointer mi_socket;
 
 QByteArray vectorRX;
 
+QTimer *timer;
+
 // Definitions
 
-#define sampleFreq	512.0f		// sample frequency in Hz
-#define betaDef		0.1f		// 2 * proportional gain
+#define sampleFreq	256.0f		// sample frequency in Hz
+#define betaDef		1.0f		// 2 * proportional gain
 
 //---------------------------------------------------------------------------------------------------
 // Variable definitions
@@ -52,6 +55,7 @@ volatile float q0 = 1.0f, q1 = 0.0f, q2 = 0.0f, q3 = 0.0f;	// quaternion of sens
 GibicTrack::GibicTrack()
 {
     vectorRX.reserve(150000);
+    timer= new QTimer(this);
 }
 
 void GibicTrack::handleError(QSerialPort::SerialPortError error)
@@ -83,6 +87,7 @@ bool GibicTrack::ConectarSensor()
         GibicConectado = false;
     }
     initActionsConnections();
+    //timer->start(500);
     return GibicConectado;
 }
 
@@ -100,13 +105,26 @@ void GibicTrack::SolicitarDato(double retorno[3][2])
     sendValues[2] = posXYZ[1][0];
     sendValues[3] = posXYZ[2][0];
 
+    sendValues[4] = q0;
+    sendValues[5] = q1;
+    sendValues[6] = q2;
+    sendValues[7] = q3;
+    qDebug("cuaternion");
+    qDebug()<< q0 << q1 << q2 << q3;
     EmpaquetarDatos(sendValues);
 
 }
 
 void GibicTrack::SolicitarDatoIMU(){
-    qDebug()<< "solicita dato IMU";
-    serial->write("*");
+    total = total + 1;
+    qDebug()<< total;
+    //serial->write("*");
+  //MadgwickAHRSupdate(float gx, float gy, float gz, float ax, float ay, float az, float mx, float my, float mz)
+    //MadgwickAHRSupdate(-0.9375, -1.25, 0.875, 0.019, -0.0522, 0.978, 0.21, 0.0313, -0.4487);
+    //MadgwickAHRSupdate( 6.3750,  2.1875, 1.6875, 0.0034, -0.9868, -0.0474, 0.2178, 0.4292, 0.0703);
+    MadgwickAHRSupdate(-6.5, 20, -4.25, 1.0586, 0.0098, 0.0176, -0.4307, -0.0181, -0.1904);
+    //MadgwickAHRSupdate(2.5, 22.1875, 23.5, 0.019, -0.0093, 0.9819, 0.2051, -0.0405, -0.4463);
+    //MadgwickAHRSupdate(-1.6250, -13.1250, 7.75, -0.0396, -0.0796, 0.9858, 0.2305, 0.00097656, -0.4414);
 
 }
 
@@ -149,6 +167,9 @@ void GibicTrack::initActionsConnections()
     //Conexiones para las señales del puerto serial
     //connect(serial, SIGNAL(error(QSerialPort::SerialPortError)), this, SLOT(handleError(QSerialPort::SerialPortError)));
     connect(serial, SIGNAL(readyRead()), this, SLOT(readData()));
+
+    //Conexion para la señal de finalizaci{on del conteo del timer
+    connect(timer, SIGNAL(timeout()), this, SLOT(SolicitarDatoIMU()));
 }
 
 void GibicTrack::RealizarFFTs(){
@@ -380,10 +401,13 @@ void GibicTrack::EmpaquetarDatos(const uchar *datos)
     //*******************************************************************
     //*******************************************************************
     //Falta convertir los angulos de Euler en el quaternion respectivo
-    QtrnVec[0]=datos[4];
-    QtrnVec[1]=datos[5];
-    QtrnVec[2]=datos[6];
-    QtrnVec[3]=datos[0];
+    qDebug()<< q0 << q1 << q2 << q3;
+    QtrnVec[0]= q0;
+    QtrnVec[1]= q1;
+    QtrnVec[2]= q2;
+    QtrnVec[3]= q3;
+    qDebug()<< "datos vector quaternion";
+    qDebug()<< QtrnVec[0] << QtrnVec[1] << QtrnVec[2] << QtrnVec[3];
     EnviarPosicion(PosVec,QtrnVec);
 }
 
@@ -502,6 +526,7 @@ void GibicTrack::MadgwickAHRSupdate(float gx, float gy, float gz, float ax, floa
     q1 *= recipNorm;
     q2 *= recipNorm;
     q3 *= recipNorm;
+
 }
 
 //---------------------------------------------------------------------------------------------------
@@ -573,6 +598,8 @@ void GibicTrack::MadgwickAHRSupdateIMU(float gx, float gy, float gz, float ax, f
     q1 *= recipNorm;
     q2 *= recipNorm;
     q3 *= recipNorm;
+    qDebug("2");
+    qDebug()<< q0 << q1 << q2 << q3;
 }
 
 //---------------------------------------------------------------------------------------------------
