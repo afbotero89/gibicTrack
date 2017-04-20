@@ -26,6 +26,8 @@ public:
 
     void SolicitarDato(double retorno[3][2]);
 
+    void SolicitarDatoIMUContinuo();
+
     void initActionsConnections();
 
     void OrganizarDatos(const uchar *datos);

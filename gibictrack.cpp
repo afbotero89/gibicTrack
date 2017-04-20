@@ -18,6 +18,7 @@
 bool GibicConectado = false;
 int totalDatos = 0;
 int total=0;
+int contadorComasIMU = 0;
 double arregloXYZ[80000][3];//Se inicializa en el constructor de la clase (mainwindow) al reservar espacio para el maximo de bytes esperados
 double binsMatriz[3][3] = {{0.0,0.0,0.0},{0.0,0.0,0.0},{0.0,0.0,0.0}};
 double posXYZ [3][2];
@@ -43,14 +44,29 @@ QTimer *timer;
 
 // Definitions
 
-#define sampleFreq	256.0f		// sample frequency in Hz
-#define betaDef		1.0f		// 2 * proportional gain
+#define sampleFreq 256.0f		// sample frequency in Hz
+#define betaDef		0.1f		// 2 * proportional gain
 
 //---------------------------------------------------------------------------------------------------
 // Variable definitions
 
 volatile float beta = betaDef;								// 2 * proportional gain (Kp)
+
+// q0: Escalar
+// q1: Quaternion en X
+// q2: Quaternion en Y
+// q3: Quaternion en Z
 volatile float q0 = 1.0f, q1 = 0.0f, q2 = 0.0f, q3 = 0.0f;	// quaternion of sensor frame relative to auxiliary frame
+
+double vectorString_IMU[] = {0.0,0.0,0.0,0.0,0.0,0.0};
+
+float ax = 0.0;
+float ay = 0.0;
+float az = 0.0;
+
+float gx = 0.0;
+float gy = 0.0;
+float gz = 0.0;
 
 GibicTrack::GibicTrack()
 {
@@ -93,7 +109,6 @@ bool GibicTrack::ConectarSensor()
 
 void GibicTrack::SolicitarDato(double retorno[3][2])
 {
-    qDebug() << "solicita dato !!!!";
     totalDatos = 0;
     serial->write("$");
 
@@ -105,27 +120,40 @@ void GibicTrack::SolicitarDato(double retorno[3][2])
     sendValues[2] = posXYZ[1][0];
     sendValues[3] = posXYZ[2][0];
 
-    sendValues[4] = q0;
-    sendValues[5] = q1;
-    sendValues[6] = q2;
-    sendValues[7] = q3;
-    qDebug("cuaternion");
-    qDebug()<< q0 << q1 << q2 << q3;
+    //sendValues[4] = q0*1.1;
+    //sendValues[5] = q1*1.1;
+    //sendValues[6] = q2*1.1;
+    //sendValues[7] = q3*1.1;
+    //qDebug("cuaternion");
+    //qDebug()<< q0 << q1 << q2 << q3;
     EmpaquetarDatos(sendValues);
 
 }
 
 void GibicTrack::SolicitarDatoIMU(){
-    total = total + 1;
-    qDebug()<< total;
-    //serial->write("*");
+    serial->write("*");
+
+    retorno[0][0] = 0;
+    retorno[1][0] = 20;
+    retorno[2][0] = 0;
+
+    //sendValues[1] = posXYZ[0][0];
+    //sendValues[2] = posXYZ[1][0];
+    //sendValues[3] = posXYZ[2][0];
+
+    sendValues[4] = q1;
+    sendValues[5] = q2;
+    sendValues[6] = q3;
+    sendValues[7] = q0;
+
+    EmpaquetarDatos(sendValues);
   //MadgwickAHRSupdate(float gx, float gy, float gz, float ax, float ay, float az, float mx, float my, float mz)
     //MadgwickAHRSupdate(-0.9375, -1.25, 0.875, 0.019, -0.0522, 0.978, 0.21, 0.0313, -0.4487);
-    //MadgwickAHRSupdate( 6.3750,  2.1875, 1.6875, 0.0034, -0.9868, -0.0474, 0.2178, 0.4292, 0.0703);
-    MadgwickAHRSupdate(-6.5, 20, -4.25, 1.0586, 0.0098, 0.0176, -0.4307, -0.0181, -0.1904);
-    //MadgwickAHRSupdate(2.5, 22.1875, 23.5, 0.019, -0.0093, 0.9819, 0.2051, -0.0405, -0.4463);
-    //MadgwickAHRSupdate(-1.6250, -13.1250, 7.75, -0.0396, -0.0796, 0.9858, 0.2305, 0.00097656, -0.4414);
+}
 
+void GibicTrack::SolicitarDatoIMUContinuo(){
+    qDebug()<< "solicitar dato IMU";
+    timer->start(50);
 }
 
 void GibicTrack::readData()
@@ -133,9 +161,34 @@ void GibicTrack::readData()
     int cantidad=serial->bytesAvailable();
     total+=cantidad;
     QByteArray Qdata = serial->readAll();
-    vectorRX.append(Qdata);
+    if (Qdata != ","){
+        vectorRX.append(Qdata);
+    }
+
     double radio;
-    qDebug()<< total;
+
+    if (Qdata == ","){
+
+        //qDebug()<< vectorRX;
+
+        vectorString_IMU[contadorComasIMU] = ::atof(vectorRX);
+
+        contadorComasIMU = contadorComasIMU + 1;
+        vectorRX.clear();
+        if (contadorComasIMU == 6){
+            // recibe gx, gy, gz, ax, ay, az, mx, my, mz
+            // El sensor primero manda acelerometro luego giroscopo
+            //q0 = 1.0f;
+            //q1 = 0.0f;
+            //q2 = 0.0f;
+            //q3 = 0.0f;
+            //MadgwickAHRSupdate(-1.32,-0.01,-0.31,-1.0,0.06,-0.04,0.0,0.0,0.0);
+            MadgwickAHRSupdate(vectorString_IMU[3], vectorString_IMU[4], vectorString_IMU[5], vectorString_IMU[0], vectorString_IMU[1], vectorString_IMU[2], 0.0, 0.0, 0.0);
+            contadorComasIMU = 0;
+        }
+    }
+
+
     if(total>=768){//if(total>=N*3*2){
         //Se requiere de este casting para tomar los bytes del QByteArray como char sin signo
         const uchar *datosRX= reinterpret_cast<const uchar*>(vectorRX.constData());
@@ -315,17 +368,6 @@ void GibicTrack::getMagnitudeVector(complex *v, double binsMatriz[3][3], double 
             binsMatriz[m][2] = magnitudeVector[k];
         }
     }
-    if(m==2){
-        qDebug()<< binsMatriz[0][0];
-        qDebug()<< binsMatriz[0][1];
-        qDebug()<< binsMatriz[0][2];
-        qDebug()<< binsMatriz[1][0];
-        qDebug()<< binsMatriz[1][1];
-        qDebug()<< binsMatriz[1][2];
-        qDebug()<< binsMatriz[2][0];
-        qDebug()<< binsMatriz[2][1];
-        qDebug()<< binsMatriz[2][2];
-    }
 }
 
 void GibicTrack::print_vector(const char *title, complex *x, int n){
@@ -392,22 +434,28 @@ void GibicTrack::EmpaquetarDatos(const uchar *datos)
     float* PosVec=new float[3];
     float* QtrnVec=new float[4];
 
-    PosVec[0]=datos[1];
-    PosVec[1]=datos[2];
-    PosVec[2]=datos[3];
+    PosVec[0]=0;
+    PosVec[1]=20;
+    PosVec[2]=0;
     //*******************************************************************
     //*******************************************************************
     //   O   J   O
     //*******************************************************************
     //*******************************************************************
     //Falta convertir los angulos de Euler en el quaternion respectivo
-    qDebug()<< q0 << q1 << q2 << q3;
-    QtrnVec[0]= q0;
-    QtrnVec[1]= q1;
-    QtrnVec[2]= q2;
-    QtrnVec[3]= q3;
-    qDebug()<< "datos vector quaternion";
-    qDebug()<< QtrnVec[0] << QtrnVec[1] << QtrnVec[2] << QtrnVec[3];
+
+
+    qDebug()<<"x:" << q1 << "y:" << q2 << "z:" << q3 << "escalar:" << q0;
+    //q0=1.0;
+    //q1=0.0;
+    //q2=-0.5;
+    //q3=0.0;
+
+    QtrnVec[0]= q1;
+    QtrnVec[1]= q2;
+    QtrnVec[2]= q3;
+    QtrnVec[3]= q0;
+
     EnviarPosicion(PosVec,QtrnVec);
 }
 
@@ -598,8 +646,7 @@ void GibicTrack::MadgwickAHRSupdateIMU(float gx, float gy, float gz, float ax, f
     q1 *= recipNorm;
     q2 *= recipNorm;
     q3 *= recipNorm;
-    qDebug("2");
-    qDebug()<< q0 << q1 << q2 << q3;
+
 }
 
 //---------------------------------------------------------------------------------------------------
