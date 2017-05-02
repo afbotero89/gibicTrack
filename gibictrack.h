@@ -6,6 +6,10 @@
 
 #include <QtSerialPort/QSerialPort>
 
+#include "igtl/igtlTransformMessage.h"
+#include "igtl/igtlPositionMessage.h"
+#include "igtl/igtlClientSocket.h"
+
 typedef float real;
 typedef struct{real Re; real Im;} complex;
 
@@ -34,13 +38,31 @@ public:
 
     void getMagnitudeVector(complex *v, double binsMatriz[3][3], double *magnitudeVector, double *frecuencyVector, int m);
 
-    void print_vector(const char *title, complex *x, int n);
+    void Conectar3DSlicer();
+
+    void EmpaquetarDatos(const uchar *datos);
+
+    void EnviarPosicion(float *PosVec, float *QtrnVec);
+
+    void MadgwickAHRSupdate(float gx, float gy, float gz, float ax, float ay, float az, float mx, float my, float mz);
+
+    void MadgwickAHRSupdateIMU(float gx, float gy, float gz, float ax, float ay, float az);
+
+    float invSqrt(float x);
+
+    void SolicitarDatoIMUTimer();
+
+    void binaryToFloat(float *array, QByteArray Qdata);
+
+    void readDataIMU(int total, QByteArray Qdata);
 
 private slots:
 
     void readData();
 
     void handleError(QSerialPort::SerialPortError error);
+
+    void solicitaDatoIMU();
 
 private:
     QSerialPort *serial;
