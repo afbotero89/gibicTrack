@@ -56,6 +56,14 @@ public:
 
     void readDataIMU(int total, QByteArray Qdata);
 
+    void solicitaSenalesTimer(double magVec_graph[128/2], double frecVec_graph[128/2]);
+
+    void MahonyAHRSupdate(float gx, float gy, float gz, float ax, float ay, float az, float mx, float my, float mz);
+
+    void MahonyAHRSupdateIMU(float gx, float gy, float gz, float ax, float ay, float az);
+
+    void readQuaternions(QByteArray Qdata);
+
 private slots:
 
     void readData();
@@ -63,6 +71,8 @@ private slots:
     void handleError(QSerialPort::SerialPortError error);
 
     void solicitaDatoIMU();
+
+    void solicitaSenales();
 
 private:
     QSerialPort *serial;
