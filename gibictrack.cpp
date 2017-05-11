@@ -96,7 +96,9 @@ volatile float twoKp = twoKpDef;											// 2 * proportional gain (Kp)
 volatile float twoKi = twoKiDef;											// 2 * integral gain (Ki)
 volatile float integralFBx = 0.0f,  integralFBy = 0.0f, integralFBz = 0.0f;	// integral error terms scaled by Ki
 
-int cantidadDatosIMU=36;
+int cantidadDatosIMU=16; //16: quaternion directamente, 36: datos IMU
+
+bool datoSolicitadoIMU = false; // false: solicita quaternion(q0,q1,q2,q3), true: solicita datos de la IMU(gx,gy,gz,ax,ay,az,mx,my,mz)
 
 GibicTrack::GibicTrack()
 {
@@ -107,13 +109,25 @@ GibicTrack::GibicTrack()
 }
 
 void GibicTrack::SolicitarDatoIMUTimer(){
-    serial->write("*");
+    if(datoSolicitadoIMU==false){
+        cantidadDatosIMU = 16;
+        serial->write("#");
+    }else{
+        cantidadDatosIMU = 36;
+        serial->write("*");
+    }
     timer->start(10);
     //solicitaDatoIMU();
 }
 
 void GibicTrack::solicitaDatoIMU(){
-    serial->write("*");
+    if(datoSolicitadoIMU==false){
+        cantidadDatosIMU = 16;
+        serial->write("#");
+    }else{
+        cantidadDatosIMU = 36;
+        serial->write("*");
+    }
 }
 
 void GibicTrack::solicitaSenalesTimer(double magVec_graph[128/2], double frecVec_graph[128/2]){
@@ -179,9 +193,13 @@ void GibicTrack::readData()
     QByteArray Qdata;
     if(cantidad==cantidadDatosIMU){
         Qdata = serial->readAll();
-        //readDataIMU(total,Qdata);
-        readQuaternions(Qdata);
-        total = 0;
+
+        if(datoSolicitadoIMU==false){
+            readQuaternions(Qdata);
+        }else{
+            readDataIMU(total,Qdata);
+        }
+
     }else{
         qDebug()<< "cantidad"<<cantidad;
         serial->flush();
@@ -273,6 +291,7 @@ void GibicTrack::readDataIMU(int total, QByteArray Qdata){
         }else{
 
             MadgwickAHRSupdate(gx, gy, gz, ax, ay, az, my, mx, -mz);
+            qDebug()<<"q1:" << q1 << "q2:" << q2 << "q3:" << q3 << "q0:" << q0;
             EmpaquetarDatos(sendValues);
         }
         //MadgwickAHRSupdate(gx, -gy, -gz, -ax, ay, az, my, -mx, mz);
@@ -350,6 +369,7 @@ void GibicTrack::readQuaternions(QByteArray Qdata){
     q1 = floatValue[1];
     q2 = floatValue[2];
     q3 = floatValue[3];
+    qDebug()<<"q1:" << q1 << "q2:" << q2 << "q3:" << q3 << "q0:" << q0;
     EmpaquetarDatos(sendValues);
 }
 
@@ -602,7 +622,7 @@ void GibicTrack::EmpaquetarDatos(const uchar *datos)
 
     //Falta convertir los angulos de Euler en el quaternion respectivo
 
-    qDebug()<<"x:" << q1 << "y:" << q2 << "z:" << q3 << "escalar:" << q0;
+    //qDebug()<<"x:" << q1 << "y:" << q2 << "z:" << q3 << "escalar:" << q0;
 
     QtrnVec[0]= q1;
     QtrnVec[1]= q2;
