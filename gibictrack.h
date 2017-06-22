@@ -9,6 +9,7 @@
 #include "igtl/igtlTransformMessage.h"
 #include "igtl/igtlPositionMessage.h"
 #include "igtl/igtlClientSocket.h"
+#include "data_man.h"
 
 typedef float real;
 typedef struct{real Re; real Im;} complex;
@@ -76,6 +77,7 @@ private slots:
 
 private:
     QSerialPort *serial;
+    data_man *dm;
 };
 
 #endif // GIBICTRACK_H

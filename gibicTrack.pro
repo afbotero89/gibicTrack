@@ -15,10 +15,12 @@ DEFINES += GIBICTRACK_LIBRARY
 
 SOURCES += gibictrack.cpp \
     RaabAlgorithm.cpp \
+    data_man.cpp
 
 HEADERS += gibictrack.h\
         gibicTrack_global.h \
         RaabAlgorithm.h \
+    data_man.h
 
 symbian {
     MMP_RULES += EXPORTUNFROZEN

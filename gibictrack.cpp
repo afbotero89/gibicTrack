@@ -9,6 +9,7 @@
 #include <QTimer>
 #include <QStringList>
 #include <QDateTime>
+#include "data_man.h"
 
 #define q    9        /* for 2^7 points --- Señal de 2^n datos */
 #define N    (1<<q)        /* N-point FFT, iFFT */
@@ -105,6 +106,7 @@ GibicTrack::GibicTrack()
     vectorRX.reserve(150000);
     timer = new QTimer(this);
     currentTime = new QDateTime();
+    dm = new data_man();
     qDebug()<< currentTime->currentDateTime();
 }
 
@@ -153,7 +155,7 @@ bool GibicTrack::ConectarSensor()
 
     //connect(serial, SIGNAL(readyRead()), this, SLOT(procesarDatos()));
     serial = new QSerialPort(this);
-    serial->setPortName("/dev/ttyUSB0");//Se requiere saber con anterioridad el nombre asignado al puerto
+    serial->setPortName("/dev/ttyUSB1");//Se requiere saber con anterioridad el nombre asignado al puerto
     serial->setBaudRate(12000000);
     serial->setDataBits(QSerialPort::Data8);
     serial->setParity(QSerialPort::NoParity);
@@ -189,8 +191,19 @@ void GibicTrack::SolicitarDato(double retorno[3][2])
 
 void GibicTrack::readData()
 {
+
     int cantidad=serial->bytesAvailable();
     QByteArray Qdata;
+
+    Qdata = serial->readAll();
+    //qDebug() << Qdata;
+
+    dm->decode_frame_2(Qdata);
+    if(dm->task_quat_complete()){
+
+        EmpaquetarDatos(sendValues);
+    }
+    /*
     if(cantidad==cantidadDatosIMU){
         Qdata = serial->readAll();
 
@@ -203,7 +216,7 @@ void GibicTrack::readData()
     }else{
         qDebug()<< "cantidad"<<cantidad;
         serial->flush();
-    }
+    }*/
 
 
 
@@ -622,12 +635,12 @@ void GibicTrack::EmpaquetarDatos(const uchar *datos)
 
     //Falta convertir los angulos de Euler en el quaternion respectivo
 
-    //qDebug()<<"x:" << q1 << "y:" << q2 << "z:" << q3 << "escalar:" << q0;
+    qDebug()<<"x:" << dm->quat_data[1] << "y:" << dm->quat_data[2] << "z:" << dm->quat_data[3] << "escalar:" << dm->quat_data[0];
 
-    QtrnVec[0]= q1;
-    QtrnVec[1]= q2;
-    QtrnVec[2]= q3;
-    QtrnVec[3]= q0;
+    QtrnVec[0]= dm->quat_data[1];
+    QtrnVec[1]= dm->quat_data[2];
+    QtrnVec[2]= dm->quat_data[3];
+    QtrnVec[3]= dm->quat_data[0];
 
     EnviarPosicion(PosVec,QtrnVec);
 
