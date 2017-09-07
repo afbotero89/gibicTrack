@@ -11,31 +11,23 @@
 #include <QDateTime>
 #include "data_man.h"
 
-#define q    9        /* for 2^7 points --- Señal de 2^n datos */
-#define N    (1<<q)        /* N-point FFT, iFFT */
-
 #ifndef PI
 # define PI    3.14159265358979323846264338327950288
 #endif
 
-bool GibicConectado = false;
-bool SlicerConectado = false;
-bool SoketCreado = false;
 
-int totalDatos = 0;
-int total=0;
-double arregloXYZ[80000][3];//Se inicializa en el constructor de la clase (mainwindow) al reservar espacio para el maximo de bytes esperados
 double binsMatriz[3][3] = {{0.0,0.0,0.0},{0.0,0.0,0.0},{0.0,0.0,0.0}};
-double posXYZ [3][2];
 double retorno[3][2] = {{0.0,0.0},{0.0,0.0},{0.0,0.0}};
 const int samplingFrecuency = 25000;//80000;
 const int deltaF=samplingFrecuency/(2*N);//El deltaF= fs/N pero para estrechar el intervalo en el que cae la frecuencia divido por 2, evitando coger 2 valores
 //Esto hay que organizarlo las frecuencias no estan en orden
 const int frecuenciesCoil[3] = {5000,10000,15000};
 uchar sendValues[7]={1,200,100,15,6,7,2};
-double signalRx[128];
-double magVec[N/2];
-double frecVec[N/2];
+
+
+// Variables madgwick (algoritmo para calculo de orientacion a partir de la IMU, algoritmo de fusion)
+#define sampleFreq 100.0f                   // sample frequency in Hz
+#define betaDef     0.38f                  // 2*proportional gain
 
 //Variables IGTLink
 igtl::Matrix4x4	matrix;
@@ -48,11 +40,12 @@ QTimer *timer;
 QDateTime *currentTime;
 QString vectorDatos;
 
-// Variables madgwick (algoritmo para calculo de orientacion a partir de la IMU, algoritmo de fusion)
-#define sampleFreq 100.0f                   // sample frequency in Hz
-#define betaDef     0.38f                  // 2*proportional gain
+double arregloXYZ[80000][3];//Se inicializa en el constructor de la clase (mainwindow) al reservar espacio para el maximo de bytes esperados
 
-
+double signalRx[128];
+double magVec[N/2];
+double frecVec[N/2];
+double posXYZ [3][2];
 volatile float beta = betaDef;								// 2 * proportional gain (Kp)
 
 
@@ -106,7 +99,14 @@ GibicTrack::GibicTrack()
     vectorRX.reserve(150000);
     timer = new QTimer(this);
     currentTime = new QDateTime();
+    serial = new QSerialPort(this);
     dm = new data_man();
+
+    this->totalDatos= 0;
+    this->SlicerConectado = false;
+    this->SoketCreado=false;
+    this->total = 0;
+
     qDebug()<< currentTime->currentDateTime();
 }
 
@@ -154,8 +154,8 @@ bool GibicTrack::ConectarSensor()
     //Conexiones para las señales del puerto serial
 
     //connect(serial, SIGNAL(readyRead()), this, SLOT(procesarDatos()));
-    serial = new QSerialPort(this);
-    serial->setPortName("/dev/ttyUSB1");//Se requiere saber con anterioridad el nombre asignado al puerto
+
+    serial->setPortName("/dev/ttyUSB0");//Se requiere saber con anterioridad el nombre asignado al puerto
     serial->setBaudRate(12000000);
     serial->setDataBits(QSerialPort::Data8);
     serial->setParity(QSerialPort::NoParity);
@@ -164,21 +164,20 @@ bool GibicTrack::ConectarSensor()
 
     if (serial->open(QIODevice::ReadWrite)) {
         // Conexion OK
-        GibicConectado = true;
+        this->GibicConectado = true;
 
     } else {
         // Si hay error
-        GibicConectado = false;
+        this->GibicConectado = false;
     }
 
     initActionsConnections();
-    return GibicConectado;
+    return this->GibicConectado;
 }
 
 void GibicTrack::SolicitarDato(double retorno[3][2])
 {
     qDebug() << "pide dato";
-    totalDatos = 0;
     //serial->write("*");
     retorno[0][0] = posXYZ[0][0];
     retorno[1][0] = posXYZ[1][0];
@@ -196,82 +195,14 @@ void GibicTrack::readData()
     QByteArray Qdata;
 
     Qdata = serial->readAll();
-    //qDebug() << Qdata;
+    qDebug() << Qdata;
 
     dm->decode_frame_2(Qdata);
     if(dm->task_quat_complete()){
 
         EmpaquetarDatos(sendValues);
     }
-    /*
-    if(cantidad==cantidadDatosIMU){
-        Qdata = serial->readAll();
 
-        if(datoSolicitadoIMU==false){
-            readQuaternions(Qdata);
-        }else{
-            readDataIMU(total,Qdata);
-        }
-
-    }else{
-        qDebug()<< "cantidad"<<cantidad;
-        serial->flush();
-    }*/
-
-
-
-    /*Son 3840 para mandar 2 periodos de la señal fundamental cufa frecuencia es 250Hz, muestreando a 80kHz un periodo serian 320 datos,
-     * dos periodos 640, por tres canales serian 1920 datos, y cada dato de 2 bytes da un total de 3840 bytes
-     */
-
-    /*
-    if(total>=3840){//if(total>=N*3*2){
-        //Se requiere de este casting para tomar los bytes del QByteArray como char sin signo
-        const uchar *datosRX= reinterpret_cast<const uchar*>(vectorRX.constData());
-        OrganizarDatos(datosRX);
-        RealizarFFTs();
-        //MostrarMatrizMag();
-        PosOri_Raab (binsMatriz, posXYZ, radio);
-
-        //MostrarXYZ(posXYZ);
-        qDebug()<< posXYZ[0][0] << posXYZ[0][1] << posXYZ[0][2];
-        sendValues[1] = posXYZ[0][0];
-        sendValues[2] = posXYZ[0][1];
-        sendValues[3] = posXYZ[0][2];
-        EmpaquetarDatos(sendValues);
-
-        total = 0;
-//        console->putData(txtCant);
-
-    }*/
-
-
-    //    QString txtCant="No: "+QString::number(cantidad)+"->"+QString::number(total)+":  ";
-    //    console->putData(txtCant);
-
-    //TODO
-    //Toda esta parte movida, para que se ejecute solo cuando este lleno el vector de recepción
-    //DE AQUI
-    //    const uchar *data= reinterpret_cast<const uchar*>(Qdata.constData());
-    //    /*Para mostrar el dato suponiendo que el arreglo de bytes tiene la siguiente estructura:
-    //      [0] -> Numero de la muestra
-    //      [1] -> Posicion en X
-    //      [2] -> Posicion en Y
-    //      [3] -> Posicion en Z
-    //      [4] -> Angulo de Azimut
-    //      [5] -> Angulo de Elevación
-    //      [6] -> Angulo de Roll
-    //      */
-    //    /*De esta forma esta suponiendo que siempre recibe 7 bytes si recibe un numero diferente se
-    //      mostraran resultados incoherentes*/
-    ////    MostrarDatos(data);
-    ////    console->putData(data);
-
-    //    OrganizarDatos(data);
-    //    if(SlicerConectado)
-    //        EmpaquetarDatos(data);
-
-    //A AQUI
 }
 
 void GibicTrack::readDataIMU(int total, QByteArray Qdata){
@@ -323,56 +254,6 @@ void GibicTrack::readDataIMU(int total, QByteArray Qdata){
         my = 0.0;
         mz = 0.0;
 
-/*
-        std::string datos = Qdata.constData();
-        QString datos1 = QString::fromUtf8(datos.c_str());
-        vectorDatos.append(datos1);
-
-        int qStringCount = vectorDatos.split(",").count();
-        if (qStringCount == 7){
-
-            if(vectorDatos.split(",")[6]=="\r\n"){
-
-                QStringList array = vectorDatos.split(",");
-
-                ax = ax + array[0].toFloat();
-                ay = ay + array[1].toFloat();
-                az = az + array[2].toFloat();
-
-                gx = gx + array[3].toFloat();
-                gy = gy + array[4].toFloat();
-                gz = gz + array[5].toFloat();
-                //MadgwickAHRSupdate(float gx, float gy, float gz, float ax, float ay, float az, float mx, float my, float mz)
-
-                filtroN = filtroN + 1;
-
-                float filtro = 1.0;
-
-                gx *= 0.0174533f;
-                gy *= 0.0174533f;
-                gz *= 0.0174533f;
-
-                //MadgwickAHRSupdate(gx, gy, gz, ax, ay, az, 0.0, 0.0, 0.0);
-                //MadgwickAHRSupdate(1.566, 0.214, 0.279, 0.013, -0.017, -0.985, 0.0, 0.0, 0.0);
-                //MadgwickAHRSupdate(-1.566, -0.214, -0.279, -0.013, 0.017, 0.985, 0.0, 0.0, 0.0);
-                MahonyAHRSupdate(gx, gy, gz, ax, ay, az, 0.0, 0.0, 0.0);
-                //qDebug()<< ax/filtro << ay/filtro << az/filtro << gx/filtro << gy/filtro << gz/filtro;
-                EmpaquetarDatos(sendValues);
-                filtroN = 0;
-
-                ax = 0.0;
-                ay = 0.0;
-                az = 0.0;
-
-                gx = 0.0;
-                gy = 0.0;
-                gz = 0.0;
-
-                total= 0;
-
-                vectorDatos.clear();
-            }
-        }*/
 }
 
 void GibicTrack::readQuaternions(QByteArray Qdata){
@@ -396,8 +277,12 @@ void GibicTrack::binaryToFloat(float *array, QByteArray Qdata){
 
 void GibicTrack::closeSerialPort()
 {
-    if (serial->isOpen())
+    if (serial->isOpen()){
+        qDebug()<< "Sensor desconectado !!!" << serial->isOpen();
         serial->close();
+    }else{
+        qDebug()<< "Puerto no conectado !!!" << serial->isOpen();
+    }
 }
 
 void GibicTrack::initActionsConnections()
@@ -449,7 +334,7 @@ void GibicTrack::OrganizarDatos(const uchar *datos){
     int cntPos=0;//Contador de posición en el vector, indica la columna de la matriz
     int cntVec = 0;//Contador del vector con el que se trabaja (X, Y o Z)indica la fila de la matriz
 
-    for (int j = 0; j < total / 2; j++)//otra forma es j+=2 y que el indice sea j en lugar de 2*j
+    for (int j = 0; j < this->total / 2; j++)//otra forma es j+=2 y que el indice sea j en lugar de 2*j
     {
         arregloXYZ[cntPos][cntVec]= datos[2 * j] * 256 + datos[2 * j + 1];
         cntPos++;
@@ -561,29 +446,28 @@ void GibicTrack::getMagnitudeVector(complex *v, double binsMatriz[3][3], double 
         if (  (frecuencyVector[k]>=(frecuenciesCoil[2]-deltaF) ) && (frecuencyVector[k]<=(frecuenciesCoil[2]+deltaF))  ){
             binsMatriz[2][m] = magnitudeVector[k];
         }
-
     }
 }
 
 void GibicTrack::Conectar3DSlicer(){
-    if(!SlicerConectado)
+    if(!this->SlicerConectado)
         {
 //            console->putData("3DSlicer: Conectando...\n");
 //            /*Establecemos conexion con el servidor-> ip: 192.168.1.11, port number: 18944
 //            que son los valores del "LocalHost" y el puerto por defecto de 3dSlicer
 //            Usando las clase suministrada por la libreria OpenIGTLink -> igtl::ClientSocket*/
-            if(!SoketCreado){
+            if(!this->SoketCreado){
                 mi_socket = igtl::ClientSocket::New();
-                SoketCreado = true;
+                this->SoketCreado = true;
             }
 
-            int result = mi_socket->ConnectToServer("localhost",18944);//192.168.1.11
+            int result = mi_socket->ConnectToServer("localhost",18945);//192.168.1.11
             if (result != 0)//Chequeamos el resultado de la +QString::numberconexion
             {
                 qDebug()<<"3DSlicer: Error\n";
             }else
             {
-                SlicerConectado=true;
+                this->SlicerConectado=true;
                 qDebug()<< "3DSlicer: Conexion OK\n";
             }
 //            /*Creamos la instancia de la clase de mensaje OpenIGTLink de acuerdo al
@@ -598,9 +482,9 @@ void GibicTrack::Conectar3DSlicer(){
                 pos_Msj->SetDeviceName("TrackerG1B1C");
 
         }else{
-            SlicerConectado = false;
+            this->SlicerConectado = false;
             mi_socket->CloseSocket();
-           qDebug()<<"3DSlicer: Desconectado\n";
+            qDebug()<<"3DSlicer: Desconectado\n";
     }
 }
 
@@ -707,7 +591,7 @@ void GibicTrack::MadgwickAHRSupdate(float gx, float gy, float gz, float ax, floa
     float s0, s1, s2, s3;
     float qDot1, qDot2, qDot3, qDot4;
     float hx, hy;
-    float _2q0mx, _2q0my, _2q0mz, _2q1mx, _2bx, _2bz, _4bx, _4bz, _8bx, _8bz, _2q0, _2q1, _2q2, _2q3, _2q0q2, _2q2q3, q0q0, q0q1, q0q2, q0q3, q1q1, q1q2, q1q3, q2q2, q2q3, q3q3;
+    float _2q0mx, _2q0my, _2q0mz, _2q1mx, _2bx, _2bz, _4bx, _4bz, _2q0, _2q1, _2q2, _2q3, _2q0q2, _2q2q3, q0q0, q0q1, q0q2, q0q3, q1q1, q1q2, q1q3, q2q2, q2q3, q3q3;
 
     // Use IMU algorithm if magnetometer measurement invalid (avoids NaN in magnetometer normalisation)
     if((mx == 0.0f) && (my == 0.0f) && (mz == 0.0f)) {
@@ -765,8 +649,7 @@ void GibicTrack::MadgwickAHRSupdate(float gx, float gy, float gz, float ax, floa
         _2bz = -_2q0mx * q2 + _2q0my * q1 + mz * q0q0 + _2q1mx * q3 - mz * q1q1 + _2q2 * my * q3 - mz * q2q2 + mz * q3q3;
         _4bx = 2.0f * _2bx;
         _4bz = 2.0f * _2bz;
-        _8bx = 2.0f * _4bx;
-        _8bz = 2.0f * _4bz;
+
 
         // Gradient decent algorithm corrective step
         s0 = -_2q2 * (2.0f * q1q3 - _2q0q2 - ax) + _2q1 * (2.0f * q0q1 + _2q2q3 - ay) - _2bz * q2 * (_2bx * (0.5f - q2q2 - q3q3) + _2bz * (q1q3 - q0q2) - mx) + (-_2bx * q3 + _2bz * q1) * (_2bx * (q1q2 - q0q3) + _2bz * (q0q1 + q2q3) - my) + _2bx * q2 * (_2bx * (q0q2 + q1q3) + _2bz * (0.5f - q1q1 - q2q2) - mz);

@@ -10,6 +10,10 @@
 #include "igtl/igtlPositionMessage.h"
 #include "igtl/igtlClientSocket.h"
 #include "data_man.h"
+#include <QTimer>
+
+#define q    9        /* for 2^7 points --- Señal de 2^n datos */
+#define N    (1<<q)        /* N-point FFT, iFFT */
 
 typedef float real;
 typedef struct{real Re; real Im;} complex;
@@ -78,6 +82,12 @@ private slots:
 private:
     QSerialPort *serial;
     data_man *dm;
+    int totalDatos;
+    bool SlicerConectado;
+    bool GibicConectado;
+    bool SoketCreado;
+    int total;
+
 };
 
 #endif // GIBICTRACK_H
